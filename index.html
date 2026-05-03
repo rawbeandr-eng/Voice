@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Mosaic — Global Audio Tapestry</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --secondary: #8b5cf6;
+            --accent: #06b6d4;
+            --dark: #0f0f1a;
+            --darker: #08080f;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--darker);
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+        
+        h1, h2, h3, .brand {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        
+        .gradient-text {
+            background: linear-gradient(135deg, #818cf8 0%, #c084fc 50%, #22d3ee 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .glass {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        
+        .glass-strong {
+            background: rgba(15, 15, 26, 0.8);
+            backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        
+        .wave-container {
+            position: relative;
+            height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+        }
+        
+        .wave-bar {
+            width: 4px;
+            background: linear-gradient(to top, #6366f1, #8b5cf6, #06b6d4);
+            border-radius: 2px;
+            transition: height 0.1s ease;
+            opacity: 0.7;
+        }
+        
+        .wave-bar.active {
+            opacity: 1;
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+        }
+        
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.3), transparent);
+            animation: float 20s infinite ease-in-out;
+            pointer-events: none;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(30px, -30px) scale(1.1); }
+            66% { transform: translate(-20px, 20px) scale(0.9); }
+        }
+        
+        @keyframes pulse-ring {
+            0% { transform: scale(0.8); opacity: 1; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+        
+        .recording-pulse {
+            position: relative;
+        }
+        
+        .recording-pulse::before {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            border: 2px solid #ef4444;
+            animation: pulse-ring 1.5s infinite;
+        }
+        
+        .mosaic-tile {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+        }
+        
+        .mosaic-tile:hover {
+            transform: scale(1.05) translateY(-2px);
+            z-index: 10;
+        }
+        
+        .mosaic-tile.playing {
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.6);
+            border-color: rgba(99, 102, 241, 0.8);
+        }
+        
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        
+        .time-zone-marker {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, transparent, rgba(99, 102, 241, 0.5), transparent);
+        }
+        
+        .visualizer-canvas {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px -10px rgba(99, 102, 241, 0.5);
+        }
+        
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+        
+        .globe-container {
+            perspective: 1000px;
+        }
+        
+        .globe {
+            transform-style: preserve-3d;
+            animation: rotate 60s linear infinite;
+        }
+        
+        @keyframes rotate {
+            from { transform: rotateY(0deg); }
+            to { transform: rotateY(360deg); }
+        }
+        
+        .location-dot {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: #22d3ee;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #22d3ee;
+            animation: blink 2s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.6s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .countdown-ring {
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+    </style>
+</head>
+<body class="min-h-screen relative">
+
+    <!-- Ambient Background -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none">
+        <div class="orb w-96 h-96 top-0 left-0 opacity-30"></div>
+        <div class="orb w-80 h-80 bottom-0 right-0 opacity-20" style="animation-delay: -5s;"></div>
+        <div class="orb w-64 h-64 top-1/2 left-1/2 opacity-20" style="animation-delay: -10s;"></div>
+        <canvas id="bgCanvas" class="absolute inset-0 w-full h-full opacity-20"></canvas>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 z-50 glass-strong">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                    </svg>
+                </div>
+                <span class="brand text-xl font-bold gradient-text">Voice Mosaic</span>
+            </div>
+            <div class="flex items-center gap-6 text-sm text-slate-400">
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
+                    <span id="liveCount">1,247 voices streaming</span>
+                </div>
+                <div class="hidden md:flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064"/>
+                    </svg>
+                    <span id="locationDisplay">Detecting location...</span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="relative z-10 pt-24 pb-12 px-6 max-w-7xl mx-auto">
+        
+        <!-- Hero Section -->
+        <section class="text-center mb-16 fade-in">
+            <h1 class="text-5xl md:text-7xl font-bold mb-6 leading-tight">
+                The World is<br>
+                <span class="gradient-text">Speaking</span>
+            </h1>
+            <p class="text-lg text-slate-400 max-w-2xl mx-auto mb-8 leading-relaxed">
+                Record a 10-second voice message about your day. It joins a real-time global tapestry of human voices, 
+                weaving together strangers across time zones into one continuous soundscape.
+            </p>
+            <div class="flex items-center justify-center gap-4 text-sm text-slate-500">
+                <span class="flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                    Anonymous & ephemeral
+                </span>
+                <span class="w-1 h-1 bg-slate-600 rounded-full"></span>
+                <span class="flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064"/>
+                    </svg>
+                    47 countries active
+                </span>
+            </div>
+        </section>
+
+        <!-- Recording Interface -->
+        <section class="max-w-2xl mx-auto mb-20">
+            <div class="glass rounded-3xl p-8 md:p-12 relative overflow-hidden">
+                <!-- Visualizer -->
+                <div class="wave-container mb-8" id="waveContainer">
+                    <!-- Bars generated by JS -->
+                </div>
+
+                <!-- Recording Timer -->
+                <div class="text-center mb-8">
+                    <div class="inline-flex items-center justify-center w-24 h-24 rounded-full glass relative mb-4">
+                        <svg class="countdown-ring absolute inset-0 w-full h-full" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(99,102,241,0.1)" stroke-width="3"/>
+                            <circle id="progressRing" cx="50" cy="50" r="45" fill="none" stroke="url(#gradient)" stroke-width="3" 
+                                    stroke-dasharray="283" stroke-dashoffset="283" stroke-linecap="round"/>
+                            <defs>
+                                <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stop-color="#6366f1"/>
+                                    <stop offset="100%" stop-color="#22d3ee"/>
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <span id="timerDisplay" class="text-3xl font-bold brand">10</span>
+                    </div>
+                    <p id="statusText" class="text-slate-400 text-sm">Press record to add your voice</p>
+                </div>
+
+                <!-- Controls -->
+                <div class="flex items-center justify-center gap-4">
+                    <button id="recordBtn" class="group relative w-16 h-16 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-lg shadow-red-500/30 transition-all hover:scale-110 active:scale-95">
+                        <div class="w-6 h-6 bg-white rounded-sm transition-all group-[.recording]:rounded-full group-[.recording]:w-4 group-[.recording]:h-4" id="recordIcon"></div>
+                    </button>
+                    <button id="playBtn" class="w-14 h-14 rounded-full glass flex items-center justify-center text-slate-300 hover:text-white hover:bg-white/5 transition-all disabled:opacity-30 disabled:cursor-not-allowed" disabled>
+                        <svg class="w-6 h-6 ml-1" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z"/>
+                        </svg>
+                    </button>
+                    <button id="submitBtn" class="px-6 py-3 rounded-full btn-primary text-white font-medium text-sm disabled:opacity-30 disabled:cursor-not-allowed" disabled>
+                        Add to Mosaic
+                    </button>
+                </div>
+
+                <!-- Audio Preview (hidden initially) -->
+                <div id="previewSection" class="hidden mt-6 pt-6 border-t border-white/5">
+                    <div class="flex items-center gap-3 text-sm text-slate-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
+                        </svg>
+                        <span id="audioDuration">0:10</span>
+                        <div class="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
+                            <div id="previewProgress" class="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 rounded-full transition-all" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Live Mosaic Stream -->
+        <section class="mb-16">
+            <div class="flex items-center justify-between mb-8">
+                <div>
+                    <h2 class="text-2xl font-bold mb-1">Live Mosaic</h2>
+                    <p class="text-sm text-slate-400">Voices streaming now, organized by your local time</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="filterAll" class="px-4 py-2 rounded-full text-sm bg-white/10 text-white">All</button>
+                    <button id="filterRecent" class="px-4 py-2 rounded-full text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Recent</button>
+                    <button id="filterNearby" class="px-4 py-2 rounded-full text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Nearby</button>
+                </div>
+            </div>
+
+            <!-- Time Zone Ribbon -->
+            <div class="relative h-12 mb-6 glass rounded-xl overflow-hidden flex items-center">
+                <div class="absolute inset-0 flex items-center px-4">
+                    <div class="flex items-center gap-8 text-xs text-slate-500" id="timeRibbon">
+                        <!-- Generated by JS -->
+                    </div>
+                </div>
+                <div class="absolute left-1/2 top-0 bottom-0 w-0.5 bg-indigo-500 shadow-lg shadow-indigo-500/50 z-10">
+                    <div class="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-indigo-500 rounded-full"></div>
+                    <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-indigo-500 rounded-full"></div>
+                </div>
+            </div>
+
+            <!-- Mosaic Grid -->
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3" id="mosaicGrid">
+                <!-- Tiles generated by JS -->
+            </div>
+        </section>
+
+        <!-- Global Visualization -->
+        <section class="glass rounded-3xl p-8 mb-16">
+            <h2 class="text-2xl font-bold mb-6">Global Pulse</h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <!-- 3D Globe Visualization -->
+                <div class="md:col-span-2 relative h-80 rounded-2xl overflow-hidden bg-gradient-to-b from-indigo-950/50 to-transparent">
+                    <canvas id="globeCanvas" class="absolute inset-0 w-full h-full"></canvas>
+                    <div class="absolute bottom-4 left-4">
+                        <div class="text-3xl font-bold brand" id="totalVoices">48,392</div>
+                        <div class="text-sm text-slate-400">voices collected</div>
+                    </div>
+                </div>
+                
+                <!-- Stats -->
+                <div class="space-y-4">
+                    <div class="glass rounded-xl p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-slate-400">Peak Activity</span>
+                            <span class="text-xs text-emerald-400">+12%</span>
+                        </div>
+                        <div class="text-2xl font-bold">20:00 UTC</div>
+                        <div class="text-xs text-slate-500">Evening reflection hour</div>
+                    </div>
+                    <div class="glass rounded-xl p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-slate-400">Avg Duration</span>
+                        </div>
+                        <div class="text-2xl font-bold">8.4s</div>
+                        <div class="text-xs text-slate-500">of 10s maximum</div>
+                    </div>
+                    <div class="glass rounded-xl p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-slate-400">Active Regions</span>
+                        </div>
+                        <div class="flex gap-2 flex-wrap">
+                            <span class="px-2 py-1 rounded-md bg-indigo-500/20 text-indigo-300 text-xs">Tokyo</span>
+                            <span class="px-2 py-1 rounded-md bg-purple-500/20 text-purple-300 text-xs">London</span>
+                            <span class="px-2 py-1 rounded-md bg-cyan-500/20 text-cyan-300 text-xs">NYC</span>
+                            <span class="px-2 py-1 rounded-md bg-pink-500/20 text-pink-300 text-xs">São Paulo</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- How It Works -->
+        <section class="text-center max-w-3xl mx-auto mb-16">
+            <h2 class="text-2xl font-bold mb-8">How It Works</h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="glass rounded-2xl p-6">
+                    <div class="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                        </svg>
+                    </div>
+                    <h3 class="font-semibold mb-2">Record</h3>
+                    <p class="text-sm text-slate-400">Share a moment, thought, or sound from your day. Completely anonymous.</p>
+                </div>
+                <div class="glass rounded-2xl p-6">
+                    <div class="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <h3 class="font-semibold mb-2">Weave</h3>
+                    <p class="text-sm text-slate-400">Your voice joins the tapestry, blended with others in your time zone.</p>
+                </div>
+                <div class="glass rounded-2xl p-6">
+                    <div class="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/>
+                        </svg>
+                    </div>
+                    <h3 class="font-semibold mb-2">Listen</h3>
+                    <p class="text-sm text-slate-400">Experience the global chorus. Every visit is a unique soundscape.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-white/5 py-8 text-center text-sm text-slate-500">
+        <p>Voice Mosaic — A continuous global audio tapestry</p>
+    </footer>
+
+    <script>
+        // ===== STATE MANAGEMENT =====
+        const state = {
+            isRecording: false,
+            isPlaying: false,
+            audioBlob: null,
+            audioUrl: null,
+            mediaRecorder: null,
+            audioContext: null,
+            analyser: null,
+            dataArray: null,
+            source: null,
+            startTime: null,
+            duration: 10,
+            elapsed: 0,
+            voices: [],
+            userLocation: null,
+            activeFilter: 'all'
+        };
+
+        // ===== MOCK DATA: Generate realistic voice entries =====
+        const cities = [
+            { name: 'Tokyo', tz: 9, lat: 35.6, lng: 139.6 },
+            { name: 'London', tz: 0, lat: 51.5, lng: -0.1 },
+            { name: 'New York', tz: -5, lat: 40.7, lng: -74.0 },
+            { name: 'São Paulo', tz: -3, lat: -23.5, lng: -46.6 },
+            { name: 'Sydney', tz: 11, lat: -33.8, lng: 151.2 },
+            { name: 'Paris', tz: 1, lat: 48.8, lng: 2.3 },
+            { name: 'Mumbai', tz: 5.5, lat: 19.0, lng: 72.8 },
+            { name: 'Cairo', tz: 2, lat: 30.0, lng: 31.2 },
+            { name: 'Lagos', tz: 1, lat: 6.5, lng: 3.3 },
+            { name: 'Bangkok', tz: 7, lat: 13.7, lng: 100.5 },
+            { name: 'Istanbul', tz: 3, lat: 41.0, lng: 28.9 },
+            { name: 'Seoul', tz: 9, lat: 37.5, lng: 127.0 }
+        ];
+
+        const voiceColors = [
+            'from-indigo-500/20 to-blue-500/20 border-indigo-500/30',
+            'from-purple-500/20 to-pink-500/20 border-purple-500/30',
+            'from-cyan-500/20 to-teal-500/20 border-cyan-500/30',
+            'from-emerald-500/20 to-green-500/20 border-emerald-500/30',
+            'from-amber-500/20 to-orange-500/20 border-amber-500/30',
+            'from-rose-500/20 to-red-500/20 border-rose-500/30'
+        ];
+
+        const voiceMoods = ['Calm', 'Energetic', 'Melancholic', 'Hopeful', 'Reflective', 'Playful'];
+
+        function generateMockVoices() {
+            const voices = [];
+            const now = new Date();
+            
+            for (let i = 0; i < 24; i++) {
+                const city = cities[Math.floor(Math.random() * cities.length)];
+                const timeOffset = Math.floor(Math.random() * 12) - 6;
+                const voiceTime = new Date(now.getTime() + timeOffset * 3600000);
+                const localHour = (voiceTime.getUTCHours() + city.tz + 24) % 24;
+                
+                voices.push({
+                    id: `voice-${i}`,
+                    city: city.name,
+                    country: getCountryForCity(city.name),
+                    lat: city.lat + (Math.random() - 0.5) * 5,
+                    lng: city.lng + (Math.random() - 0.5) * 5,
+                    time: voiceTime,
+                    localHour,
+                    duration: 5 + Math.floor(Math.random() * 6),
+                    color: voiceColors[Math.floor(Math.random() * voiceColors.length)],
+                    mood: voiceMoods[Math.floor(Math.random() * voiceMoods.length)],
+                    waveform: Array.from({ length: 20 }, () => 20 + Math.random() * 80),
+                    isPlaying: false
+                });
+            }
+            
+            return voices.sort((a, b) => b.time - a.time);
+        }
+
+        function getCountryForCity(city) {
+            const map = {
+                'Tokyo': 'Japan', 'London': 'UK', 'New York': 'USA', 'São Paulo': 'Brazil',
+                'Sydney': 'Australia', 'Paris': 'France', 'Mumbai': 'India', 'Cairo': 'Egypt',
+                'Lagos': 'Nigeria', 'Bangkok': 'Thailand', 'Istanbul': 'Turkey', 'Seoul': 'South Korea'
+            };
+            return map[city] || 'Unknown';
+        }
+
+        // ===== DOM ELEMENTS =====
+        const recordBtn = document.getElementById('recordBtn');
+        const playBtn = document.getElementById('playBtn');
+        const submitBtn = document.getElementById('submitBtn');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const progressRing = document.getElementById('progressRing');
+        const statusText = document.getElementById('statusText');
+        const waveContainer = document.getElementById('waveContainer');
+        const previewSection = document.getElementById('previewSection');
+        const previewProgress = document.getElementById('previewProgress');
+        const mosaicGrid = document.getElementById('mosaicGrid');
+        const timeRibbon = document.getElementById('timeRibbon');
+
+        // ===== INITIALIZATION =====
+        function init() {
+            state.voices = generateMockVoices();
+            createWaveBars();
+            createTimeRibbon();
+            renderMosaic();
+            initGlobe();
+            initBackground();
+            detectLocation();
+            updateLiveCount();
+            
+            // Simulate incoming voices
+            setInterval(() => {
+                addRandomVoice();
+                updateLiveCount();
+            }, 8000);
+        }
+
+        function createWaveBars() {
+            waveContainer.innerHTML = '';
+            for (let i = 0; i < 40; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'wave-bar';
+                bar.style.height = '4px';
+                waveContainer.appendChild(bar);
+            }
+        }
+
+        function createTimeRibbon() {
+            const hours = [];
+            const now = new Date();
+            const currentHour = now.getHours();
+            
+            for (let i = -6; i <= 6; i++) {
+                const hour = (currentHour + i + 24) % 24;
+                const isCurrent = i === 0;
+                hours.push(`
+                    <div class="flex flex-col items-center min-w-[60px] ${isCurrent ? 'text-indigo-400 font-semibold' : ''}">
+                        <span class="text-[10px] ${isCurrent ? 'text-indigo-400' : 'text-slate-600'}">${i === 0 ? 'NOW' : formatHour(hour)}</span>
+                        <div class="w-1 h-1 rounded-full mt-1 ${isCurrent ? 'bg-indigo-400' : 'bg-slate-700'}"></div>
+                    </div>
+                `);
+            }
+            timeRibbon.innerHTML = hours.join('');
+        }
+
+        function formatHour(h) {
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            const hour = h % 12 || 12;
+            return `${hour} ${ampm}`;
+        }
+
+        // ===== RECORDING =====
+        recordBtn.addEventListener('click', toggleRecording);
+
+        async function toggleRecording() {
+            if (state.isRecording) {
+                stopRecording();
+            } else {
+                await startRecording();
+            }
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                state.analyser = state.audioContext.createAnalyser();
+                state.source = state.audioContext.createMediaStreamSource(stream);
+                state.source.connect(state.analyser);
+                state.analyser.fftSize = 256;
+                
+                const bufferLength = state.analyser.frequencyBinCount;
+                state.dataArray = new Uint8Array(bufferLength);
+                
+                state.mediaRecorder = new MediaRecorder(stream);
+                const chunks = [];
+                
+                state.mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+                state.mediaRecorder.onstop = () => {
+                    state.audioBlob = new Blob(chunks, { type: 'audio/webm' });
+                    state.audioUrl = URL.createObjectURL(state.audioBlob);
+                    playBtn.disabled = false;
+                    submitBtn.disabled = false;
+                    previewSection.classList.remove('hidden');
+                    statusText.textContent = 'Recording complete. Preview or submit.';
+                };
+                
+                state.mediaRecorder.start();
+                state.isRecording = true;
+                state.startTime = Date.now();
+                state.elapsed = 0;
+                
+                recordBtn.classList.add('recording');
+                recordBtn.classList.add('recording-pulse');
+                statusText.textContent = 'Recording... speak your moment';
+                playBtn.disabled = true;
+                submitBtn.disabled = true;
+                
+                animateRecording();
+                recordingTimer();
+                
+            } catch (err) {
+                console.error('Recording error:', err);
+                statusText.textContent = 'Microphone access denied. Please allow access.';
+            }
+        }
+
+        function stopRecording() {
+            if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
+                state.mediaRecorder.stop();
+                state.mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            }
+            
+            state.isRecording = false;
+            recordBtn.classList.remove('recording');
+            recordBtn.classList.remove('recording-pulse');
+            
+            // Stop visualization
+            cancelAnimationFrame(state.animationId);
+            
+            // Reset wave bars
+            document.querySelectorAll('.wave-bar').forEach(bar => {
+                bar.style.height = '4px';
+                bar.classList.remove('active');
+            });
+        }
+
+        function recordingTimer() {
+            if (!state.isRecording) return;
+            
+            const elapsed = (Date.now() - state.startTime) / 1000;
+            const remaining = Math.max(0, state.duration - elapsed);
+            
+            timerDisplay.textContent = Math.ceil(remaining);
+            
+            const circumference = 283;
+            const offset = circumference - (elapsed / state.duration) * circumference;
+            progressRing.style.strokeDashoffset = Math.max(0, offset);
+            
+            if (remaining <= 0) {
+                stopRecording();
+                return;
+            }
+            
+            requestAnimationFrame(recordingTimer);
+        }
+
+        function animateRecording() {
+            if (!state.isRecording || !state.analyser) return;
+            
+            state.analyser.getByteFrequencyData(state.dataArray);
+            const bars = document.querySelectorAll('.wave-bar');
+            const step = Math.floor(state.dataArray.length / bars.length);
+            
+            bars.forEach((bar, i) => {
+                const value = state.dataArray[i * step] || 0;
+                const height = Math.max(4, (value / 255) * 100);
+                bar.style.height = `${height}px`;
+                bar.classList.toggle('active', value > 100);
+            });
+            
+            state.animationId = requestAnimationFrame(animateRecording);
+        }
+
+        // ===== PLAYBACK =====
+        playBtn.addEventListener('click', togglePlayback);
+
+        function togglePlayback() {
+            if (state.isPlaying) {
+                stopPlayback();
+            } else {
+                startPlayback();
+            }
+        }
+
+        function startPlayback() {
+            if (!state.audioUrl) return;
+            
+            const audio = new Audio(state.audioUrl);
+            state.currentAudio = audio;
+            state.isPlaying = true;
+            
+            playBtn.innerHTML = `<svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`;
+            
+            audio.play();
+            
+            audio.ontimeupdate = () => {
+                const progress = (audio.currentTime / audio.duration) * 100;
+                previewProgress.style.width = `${progress}%`;
+            };
+            
+            audio.onended = stopPlayback;
+        }
+
+        function stopPlayback() {
+            if (state.currentAudio) {
+                state.currentAudio.pause();
+                state.currentAudio = null;
+            }
+            state.isPlaying = false;
+            playBtn.innerHTML = `<svg class="w-6 h-6 ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
+            previewProgress.style.width = '0%';
+        }
+
+        // ===== SUBMIT =====
+        submitBtn.addEventListener('click', submitVoice);
+
+        function submitVoice() {
+            if (!state.audioBlob) return;
+            
+            // Create new voice entry
+            const newVoice = {
+                id: `voice-${Date.now()}`,
+                city: state.userLocation?.city || 'Your Location',
+                country: state.userLocation?.country || 'Unknown',
+                lat: state.userLocation?.lat || 0,
+                lng: state.userLocation?.lng || 0,
+                time: new Date(),
+                localHour: new Date().getHours(),
+                duration: Math.floor(state.elapsed) || 10,
+                color: voiceColors[Math.floor(Math.random() * voiceColors.length)],
+                mood: 'Fresh',
+                waveform: Array.from({ length: 20 }, () => 30 + Math.random() * 60),
+                isPlaying: false,
+                isNew: true
+            };
+            
+            state.voices.unshift(newVoice);
+            renderMosaic();
+            
+            // Reset
+            state.audioBlob = null;
+            state.audioUrl = null;
+            playBtn.disabled = true;
+            submitBtn.disabled = true;
+            previewSection.classList.add('hidden');
+            timerDisplay.textContent = '10';
+            progressRing.style.strokeDashoffset = 283;
+            statusText.textContent = 'Voice added to the mosaic! Record another?';
+            
+            // Celebration effect
+            createParticles();
+        }
+
+        // ===== MOSAIC RENDERING =====
+        function renderMosaic() {
+            const filtered = getFilteredVoices();
+            mosaicGrid.innerHTML = '';
+            
+            filtered.forEach((voice, index) => {
+                const tile = document.createElement('div');
+                tile.className = `mosaic-tile glass rounded-xl p-4 relative overflow-hidden ${voice.isNew ? 'ring-2 ring-indigo-500' : ''}`;
+                tile.style.animationDelay = `${index * 50}ms`;
+                
+                const waveformBars = voice.waveform.map(h => 
+                    `<div class="w-1 bg-current rounded-full" style="height: ${h}%; opacity: 0.6;"></div>`
+                ).join('');
+                
+                tile.innerHTML = `
+                    <div class="absolute inset-0 bg-gradient-to-br ${voice.color} opacity-50"></div>
+                    <div class="relative z-10">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-medium text-slate-300">${voice.city}</span>
+                            <span class="text-[10px] text-slate-500">${timeAgo(voice.time)}</span>
+                        </div>
+                        <div class="flex items-end gap-0.5 h-12 mb-3 text-indigo-300">
+                            ${waveformBars}
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] px-2 py-1 rounded-full bg-white/5 text-slate-400">${voice.mood}</span>
+                            <span class="text-[10px] text-slate-500">${voice.duration}s</span>
+                        </div>
+                    </div>
+                    <button class="absolute inset-0 z-20 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity group" onclick="playVoice('${voice.id}')">
+                        <div class="w-12 h-12 rounded-full bg-white/20 backdrop-blur flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <svg class="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                        </div>
+                    </button>
+                `;
+                
+                mosaicGrid.appendChild(tile);
+            });
+        }
+
+        function getFilteredVoices() {
+            switch(state.activeFilter) {
+                case 'recent':
+                    return state.voices.slice(0, 12);
+                case 'nearby':
+                    return state.voices.filter(v => Math.abs(v.localHour - new Date().getHours()) <= 2);
+                default:
+                    return state.voices;
+            }
+        }
+
+        function timeAgo(date) {
+            const seconds = Math.floor((new Date() - date) / 1000);
+            if (seconds < 60) return 'Just now';
+            if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+            if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+            return `${Math.floor(seconds / 86400)}d ago`;
+        }
+
+        // Filter buttons
+        document.getElementById('filterAll').addEventListener('click', () => setFilter('all'));
+        document.getElementById('filterRecent').addEventListener('click', () => setFilter('recent'));
+        document.getElementById('filterNearby').addEventListener('click', () => setFilter('nearby'));
+
+        function setFilter(filter) {
+            state.activeFilter = filter;
+            ['filterAll', 'filterRecent', 'filterNearby'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (id === `filter${filter.charAt(0).toUpperCase() + filter.slice(1)}`) {
+                    btn.className = 'px-4 py-2 rounded-full text-sm bg-white/10 text-white';
+                } else {
+                    btn.className = 'px-4 py-2 rounded-full text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all';
+                }
+            });
+            renderMosaic();
+        }
+
+        // Play voice (simulated)
+        window.playVoice = function(id) {
+            const voice = state.voices.find(v => v.id === id);
+            if (!voice) return;
+            
+            // Visual feedback
+            document.querySelectorAll('.mosaic-tile').forEach(tile => tile.classList.remove('playing'));
+            event.currentTarget.closest('.mosaic-tile').classList.add('playing');
+            
+            // Simulate playback with visualizer
+            const bars = event.currentTarget.closest('.mosaic-tile').querySelectorAll('.h-12 > div');
+            let frame = 0;
+            const interval = setInterval(() => {
+                bars.forEach((bar, i) => {
+                    const h = voice.waveform[i] * (0.5 + Math.random() * 0.5);
+                    bar.style.height = `${h}%`;
+                });
+                frame++;
+                if (frame > voice.duration * 10) {
+                    clearInterval(interval);
+                    bars.forEach((bar, i) => {
+                        bar.style.height = `${voice.waveform[i]}%`;
+                    });
+                    event.currentTarget.closest('.mosaic-tile').classList.remove('playing');
+                }
+            }, 100);
+        };
+
+        // ===== GLOBE VISUALIZATION =====
+        function initGlobe() {
+            const canvas = document.getElementById('globeCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            function resize() {
+                canvas.width = canvas.offsetWidth * 2;
+                canvas.height = canvas.offsetHeight * 2;
+                ctx.scale(2, 2);
+            }
+            resize();
+            window.addEventListener('resize', resize);
+            
+            let rotation = 0;
+            const dots = state.voices.map(v => ({
+                lat: v.lat,
+                lng: v.lng,
+                active: Math.random() > 0.5
+            }));
+            
+            function project(lat, lng, rot) {
+                const phi = (lat * Math.PI) / 180;
+                const theta = ((lng + rot) * Math.PI) / 180;
+                const x = Math.cos(phi) * Math.sin(theta);
+                const y = Math.sin(phi);
+                const z = Math.cos(phi) * Math.cos(theta);
+                
+                // Only show front-facing dots
+                if (z < 0) return null;
+                
+                const scale = 120;
+                const cx = canvas.offsetWidth / 2;
+                const cy = canvas.offsetHeight / 2;
+                
+                return {
+                    x: cx + x * scale,
+                    y: cy - y * scale,
+                    z: z
+                };
+            }
+            
+            function drawGlobe() {
+                ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+                
+                // Draw globe outline
+                ctx.beginPath();
+                ctx.arc(canvas.offsetWidth / 2, canvas.offsetHeight / 2, 120, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(99, 102, 241, 0.1)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                // Draw latitude lines
+                for (let lat = -60; lat <= 60; lat += 30) {
+                    ctx.beginPath();
+                    for (let lng = -180; lng <= 180; lng += 5) {
+                        const p = project(lat, lng, rotation);
+                        if (p) {
+                            if (lng === -180) ctx.moveTo(p.x, p.y);
+                            else ctx.lineTo(p.x, p.y);
+                        }
+                    }
+                    ctx.strokeStyle = 'rgba(99, 102, 241, 0.05)';
+                    ctx.stroke();
+                }
+                
+                // Draw dots
+                dots.forEach(dot => {
+                    const p = project(dot.lat, dot.lng, rotation);
+                    if (!p) return;
+                    
+                    const size = 2 + (1 - p.z) * 2;
+                    const alpha = 0.3 + p.z * 0.7;
+                    
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+                    ctx.fillStyle = dot.active 
+                        ? `rgba(34, 211, 238, ${alpha})` 
+                        : `rgba(99, 102, 241, ${alpha * 0.5})`;
+                    ctx.fill();
+                    
+                    if (dot.active) {
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, size * 3, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgba(34, 211, 238, ${alpha * 0.1})`;
+                        ctx.fill();
+                    }
+                });
+                
+                rotation += 0.2;
+                requestAnimationFrame(drawGlobe);
+            }
+            
+            drawGlobe();
+        }
+
+        // ===== BACKGROUND PARTICLES =====
+        function initBackground() {
+            const canvas = document.getElementById('bgCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            function resize() {
+                canvas.width = window.innerWidth * 2;
+                canvas.height = window.innerHeight * 2;
+                ctx.scale(2, 2);
+            }
+            resize();
+            window.addEventListener('resize', resize);
+            
+            const particles = Array.from({ length: 50 }, () => ({
+                x: Math.random() * window.innerWidth,
+                y: Math.random() * window.innerHeight,
+                vx: (Math.random() - 0.5) * 0.3,
+                vy: (Math.random() - 0.5) * 0.3,
+                size: Math.random() * 2 + 0.5,
+                alpha: Math.random() * 0.5 + 0.1
+            }));
+            
+            function animate() {
+                ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+                
+                particles.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    
+                    if (p.x < 0) p.x = window.innerWidth;
+                    if (p.x > window.innerWidth) p.x = 0;
+                    if (p.y < 0) p.y = window.innerHeight;
+                    if (p.y > window.innerHeight) p.y = 0;
+                    
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(99, 102, 241, ${p.alpha})`;
+                    ctx.fill();
+                });
+                
+                // Draw connections
+                particles.forEach((p1, i) => {
+                    particles.slice(i + 1).forEach(p2 => {
+                        const dx = p1.x - p2.x;
+                        const dy = p1.y - p2.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (dist < 150) {
+                            ctx.beginPath();
+                            ctx.moveTo(p1.x, p1.y);
+                            ctx.lineTo(p2.x, p2.y);
+                            ctx.strokeStyle = `rgba(99, 102, 241, ${0.05 * (1 - dist / 150)})`;
+                            ctx.lineWidth = 0.5;
+                            ctx.stroke();
+                        }
+                    });
+                });
+                
+                requestAnimationFrame(animate);
+            }
+            
+            animate();
+        }
+
+        // ===== UTILITIES =====
+        function detectLocation() {
+            // Simulated location detection
+            setTimeout(() => {
+                state.userLocation = { city: 'Your City', country: 'Your Country', lat: 40.7, lng: -74.0 };
+                document.getElementById('locationDisplay').textContent = 'Your City, Your Country';
+            }, 1500);
+        }
+
+        function updateLiveCount() {
+            const base = 1247;
+            const variation = Math.floor(Math.random() * 50) - 25;
+            document.getElementById('liveCount').textContent = `${(base + variation).toLocaleString()} voices streaming`;
+        }
+
+        function addRandomVoice() {
+            const newVoice = generateMockVoices()[0];
+            newVoice.id = `voice-${Date.now()}`;
+            state.voices.unshift(newVoice);
+            if (state.voices.length > 48) state.voices.pop();
+            renderMosaic();
+        }
+
+        function createParticles() {
+            // Simple confetti effect
+            const colors = ['#6366f1', '#8b5cf6', '#22d3ee', '#10b981'];
+            for (let i = 0; i < 30; i++) {
+                const particle = document.createElement('div');
+                particle.style.cssText = `
+                    position: fixed;
+                    width: 8px;
+                    height: 8px;
+                    background: ${colors[Math.floor(Math.random() * colors.length)]};
+                    border-radius: 50%;
+                    pointer-events: none;
+                    z-index: 100;
+                    left: 50%;
+                    top: 50%;
+                `;
+                document.body.appendChild(particle);
+                
+                const angle = (Math.PI * 2 * i) / 30;
+                const velocity = 100 + Math.random() * 200;
+                const vx = Math.cos(angle) * velocity;
+                const vy = Math.sin(angle) * velocity;
+                
+                particle.animate([
+                    { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+                    { transform: `translate(${vx}px, ${vy}px) scale(0)`, opacity: 0 }
+                ], {
+                    duration: 1000 + Math.random() * 500,
+                    easing: 'cubic-bezier(0, .9, .57, 1)'
+                }).onfinish = () => particle.remove();
+            }
+        }
+
+        // Start
+        init();
+    </script>
+</body>
+</html>
